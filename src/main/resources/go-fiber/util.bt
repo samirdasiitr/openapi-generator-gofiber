@@ -1,0 +1,75 @@
+{# Copyright (c) 2022, Samir Das <samiruor@gmail.com> #}
+// Service name: {{ appName }}
+
+// Generated on {{ generatedDate }}
+
+package {{packageName}}
+
+import (
+    "os"
+    "io/ioutil"
+    "strconv"
+    "time"
+
+    "github.com/gofiber/fiber/v2"
+)
+
+// Read file from multipart request
+func (rtr *Router) ReadFile(ctx *fiber.Ctx, paramName string) (*os.File, error) {
+    fileHeader, err := ctx.FormFile(paramName)
+    if err != nil {
+        return nil, err
+    }
+
+	return readFileHeaderToTempFile(fileHeader)
+}
+
+// readFileHeaderToTempFile reads multipart.FileHeader and writes it to a temporary file
+func readFileHeaderToTempFile(fileHeader *multipart.FileHeader) (*os.File, error) {
+	formFile, err := fileHeader.Open()
+	if err != nil {
+		return nil, err
+	}
+
+	defer formFile.Close()
+
+	fileBytes, err := ioutil.ReadAll(formFile)
+	if err != nil {
+		return nil, err
+	}
+
+	file, err := ioutil.TempFile("", fileHeader.Filename)
+	if err != nil {
+		return nil, err
+	}
+
+	defer file.Close()
+
+	file.Write(fileBytes)
+
+	return file, nil
+}
+
+// Function to convert a go type to string representation
+func ToString(data interface{}) string {
+    switch data.(type) {
+    case int:
+        return strconv.FormatInt(int64(data.(int)), 10)
+    case int64:
+        return strconv.FormatInt(int64(data.(int32)), 10)
+    case int32:
+        return strconv.FormatInt(int64(data.(int64)), 10)
+    case bool:
+        return strconv.FormatBool(data.(bool))
+    case float32:
+        return strconv.FormatFloat(float64(data.(float32)), 'f', -1, 64)
+    case float64:
+        return strconv.FormatFloat(float64(data.(float64)), 'f', -1, 64)
+    case time.Time:
+        return `"` + data.(time.Time).String()  + `"`
+    case string:
+        return `"` + data.(string)  + `"`
+    default:
+        return data.(BaseModel).String()
+    }
+}

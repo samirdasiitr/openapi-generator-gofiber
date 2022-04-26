@@ -1,0 +1,39 @@
+{# Copyright (c) 2022, Samir Das <samiruor@gmail.com> #}
+{% if param.vendorExtensions.x_sensitive %}
+`"REDACTED"`
+{% else %}
+{% if param.isLong or param.isInteger %}
+strconv.FormatInt(int64({{ value }}), 10)
+{% elseif param.isFloat or param.isDouble %}
+strconv.FormatFloat(float64({{ value }}), 'f', -1, 64)
+{% elseif param.isBoolean %}
+strconv.FormatBool({{ value }})
+{% elseif param.isDate or param.isDateTime %}
+func() string {
+    {{ param.name }}Bytes, _ := {{ value }}.MarshalJSON()
+    return `"` + string({{ param.name }}Bytes) + `"`
+}()
+{% elseif param.isString %}
+{% if  param.dataFormat equals "uuid" %}
+`"` + {{ value }}.String() + `"`
+{% else %}
+`"` + {{ value}} + `"`
+{% endif %}
+{% elseif param.isFile %}
+`"*not reading file parameter*"`
+{% else %}
+{% if param.dataType equals "string" %}
+`"` + string({{ value }}) + `"`
+{% else %}
+{% if param.vendorExtensions.exclude_stringify %}
+`"excluded to avoid recursion"`
+{% else %}
+{% if param.dataFormat equals "byte" %}
+`"` + string({{ value }}) + `"`
+{% else %}
+{{ value }}.String()
+{% endif %}
+{% endif %}
+{% endif %}
+{% endif %}
+{% endif %}

@@ -1,0 +1,12 @@
+{# Copyright (c) 2022, Samir Das <samiruor@gmail.com> #}
+// Service name: {{ appName }}
+
+// Generated on {{ generatedDate }}
+
+package {{packageName}}
+
+
+// BaseModel which every model inherits/implements.
+type BaseModel interface {
+    String() string
+}

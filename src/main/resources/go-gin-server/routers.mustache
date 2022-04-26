@@ -1,0 +1,82 @@
+{{>partial_header}}
+package {{packageName}}
+
+import (
+    "os"
+    "crypto/md5"
+    "encoding/hex"
+
+    "github.com/gofiber/fiber"
+    "github.com/sirupsen/logrus"
+)
+
+type Response struct {
+    Code int
+    Body interface{}
+}
+
+{{#apiInfo}}{{#apis}}
+// {{classname}}Delegate {{summary}}
+type {{classname}}Delegate interface {
+{{#operations}}
+    {{#operation}}
+    {{nickname}}(*fiber.Ctx{{#allParams}}, {{dataType}}{{/allParams}}) (Response, error)
+    {{/operation}}
+{{/operations}}
+}
+{{/apis}}{{/apiInfo}}
+
+// Router object
+type Router struct {
+    *fiber.App
+{{#apiInfo}}{{#apis}}
+    {{classVarName}}Delegate {{classname}}Delegate
+{{/apis}}{{/apiInfo}}
+}
+
+/*
+func Logger() gin.HandlerFunc {
+    return func(c *gin.Context) {
+        contextId := c.GetHeader("x-request-Id")
+        sessionId := c.GetHeader("x-session-Id")
+        authZToken := c.GetHeader("Authorization")
+        authNToken := c.GetHeader("Authentication")
+
+        if authZToken != "" {
+            sum := md5.Sum([]byte(authZToken))
+            sessionId = hex.EncodeToString(sum[:])
+            c.Set("sessionId", sessionId)
+        }
+
+        logger := logrus.WithFields(logrus.Fields{
+            "contextId": contextId,
+            "sessionId": sessionId,
+            "password": "this should not seen",
+        })
+
+        logger.Info("password is this")
+
+        c.Set("logger", logger)
+        c.Set("Authorization", authZToken)
+        c.Set("Authentication", authNToken)
+    }
+}
+*/
+
+// NewRouter returns a new router.
+func NewRouter() *Router {
+    router := &Router {
+        App: fiber.New(),
+    }
+
+{{#apiInfo}}{{#apis}}
+    // {{classname}} routes
+{{#operations}}
+    {{#operation}}
+    router.{{httpMethod.toUpperCase}}("{{{basePathWithoutHost}}}{{{path}}}", router.{{nickname}})
+    {{/operation}}
+{{/operations}}
+{{/apis}}{{/apiInfo}}
+
+    return router
+}

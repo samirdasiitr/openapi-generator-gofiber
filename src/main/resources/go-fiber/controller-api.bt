@@ -1,0 +1,157 @@
+{# Copyright (c) 2022, Samir Das <samiruor@gmail.com> #}
+// Service name: {{ appName }}
+
+// Generated on {{ generatedDate }}
+
+package {{packageName}}
+
+
+{% if operations|length > 0 %}
+import (
+    "fmt"
+
+	"github.com/gofiber/fiber/v2"
+	"gorm.io/gorm"
+{% for operation in operations.operation %}
+{% for import in operation.imports %}
+    "{{ import }}"
+{% endfor %}
+{% endfor %}
+)
+{% endif %}
+
+
+{% for operation in operations.operation %}
+// {{operation.nickname}} - {{ operation.summary }}
+
+{% for param in operation.queryParams %}{% if loop.first %}// Query parameters: {% endif %}{{ param.baseName }}:{{ param.dataType }}
+{% if loop.last %}
+
+{% endif %}{% endfor %}
+{% for param in operation.pathParams %}{% if loop.first %}// Path parameters: {% endif %}{{ param.baseName }}:{{ param.dataType }}
+{% if loop.last %}
+
+{% endif %}{% endfor %}
+{% for param in operation.bodyParams %}{% if loop.first %}// Body parameters: {% endif %}{{ param.baseName }}:{{ param.dataType }}
+{% if loop.last %}
+
+{% endif %}{% endfor %}
+{% for param in operation.formParams %}{% if loop.first %}// Body parameters: {% endif %}{{ param.baseName }}:{{ param.dataType }}
+{% if loop.last %}
+
+{% endif %}{% endfor %}
+{% if operation.returnType %}// Return: {{ operation.returnType}} {% endif %}
+
+func (rtr *Router) {{ operation.nickname }}(ctx *fiber.Ctx) error {
+    logger := GetLoggerWithContext(ctx)
+
+{% for param in operation.queryParams %}
+{% if loop.first %}
+    queryParams := struct {
+{% endif %}
+        {{ param.vendorExtensions.varName }} *{{ param.dataType }} `query:"{{param.baseName}}"`
+{% if loop.last %}
+    }{}
+
+    // Parse query parameters
+    errQ := ctx.QueryParser(&queryParams)
+    if errQ != nil {
+        errQ = fmt.Errorf("failed to parse query parameters, err: %v", errQ.Error())
+        ctx.Status(fiber.StatusBadRequest).SendString(errQ.Error())
+        return errQ
+    }
+
+    // logger.Infof("{{ operation.nickname }} Query parameters: %v", queryParams)
+{% endif %}
+{% endfor %}
+
+{% for param in operation.queryParams %}
+{% if param.required %}
+    if queryParams.{{ param.vendorExtensions.varName }} == nil {
+        errQ = fmt.Errorf("missing '{{param.baseName}}' required query parameter")
+        ctx.Status(fiber.StatusBadRequest).SendString(errQ.Error())
+        return errQ
+    }
+{% endif %}
+
+{% endfor %}
+
+{% for param in operation.pathParams %}
+    // Read {{param.baseName}} as path parameter
+    {{ param.paramName }} := ctx.Params("{{param.baseName}}")
+{% if param.required %}
+    if {{ param.paramName }} == "" {
+        err := fmt.Errorf("missing '{{param.baseName}}'")
+        ctx.Status(fiber.StatusBadRequest).SendString(err.Error())
+        return err
+    }
+
+    // logger.Infof("{{ operation.nickname }} Path parameters: {{param.baseName}}=%v", {{ param.paramName }})
+{% endif %}
+{% endfor %}
+
+{% for param in operation.bodyParams %}
+    // Read {{param.baseName}} as body request
+    var {{ param.paramName }} {{ param.dataType }}
+
+    err{{ param.vendorExtensions.varName }} := ctx.BodyParser(&{{ param.paramName }})
+    if err{{ param.vendorExtensions.varName }} != nil {
+        err{{ param.vendorExtensions.varName }} = fmt.Errorf("failed to parse body request, err: %v",
+            err{{ param.vendorExtensions.varName }}.Error())
+        ctx.Status(fiber.StatusBadRequest).SendString(err{{ param.vendorExtensions.varName }}.Error())
+        return err{{ param.vendorExtensions.varName }}
+    }
+
+    // logger.Infof("{{ operation.nickname }} Request parameters: %v", {{ param.paramName }})
+{% endfor %}
+
+{% for param in operation.formParams %}
+    // Read {{param.baseName}} as form parameter
+    var {{ param.paramName }} {{ param.dataType }}
+
+{% if param.isFile and not param.isArray %}
+    {{ param.paramName }}, err{{ param.vendorExtensions.varName }} := rtr.ReadFile(ctx, "{{ param.baseName }}")
+{% else %}
+    {{ param.paramName }}Str := ctx.FormValue("{{ param.paramName }}")
+    {% if not param.isPrimitive %}
+    err{{ param.vendorExtensions.varName }} := json.Unmarshal([]byte({{ param.paramName }}Str), &{{ param.paramName }})
+    {% else %}
+    ** Ask Samir to fix formvalue of primitive type ***
+    {% endif %}
+{% endif %}
+    if err{{ param.vendorExtensions.varName }} != nil {
+        err{{ param.vendorExtensions.varName }} = fmt.Errorf("failed to read form parameter '{{ param.baseName }}', err: %v",
+            err{{ param.vendorExtensions.varName }}.Error())
+        ctx.Status(fiber.StatusBadRequest).SendString(err{{ param.vendorExtensions.varName }}.Error())
+        return err{{ param.vendorExtensions.varName }}
+    }
+
+{% endfor %}
+
+    if rtr.{{ classVarName }}Delegate != nil {
+        response, errR := rtr.{{classVarName}}Delegate.{{operation.nickname}}(
+            ctx, rtr.DbConn, logger{% if operation.allParams | length > 0 %},{% endif %}
+            {% for param in operation.allParams %}
+            {% if param.isQueryParam %}
+            queryParams.{{ param.vendorExtensions.varName }}{% endif %}
+            {% if param.isPathParam or param.isBodyParam or param.isFormParam %}
+            &{{ param.paramName }}{% endif %}
+            {% if not loop.last %},{% endif %}
+            {% endfor %}
+        )
+        if errR != nil {
+            errR = fmt.Errorf("failure in {{classVarName}}Delegate : %v", errR.Error())
+            ctx.Status(response.Code).SendString(errR.Error())
+            return errR
+        }
+
+        ctx.Status(response.Code).JSON(response.Body)
+        return nil
+    }
+
+    ctx.Status(fiber.StatusNotImplemented).SendString("{{ operation.nickname }} not implemented!!")
+    logger.Infof("{{ operation.nickname }} done")
+    return nil
+}
+{% endfor %}
+

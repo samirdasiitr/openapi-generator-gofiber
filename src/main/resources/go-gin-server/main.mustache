@@ -1,0 +1,17 @@
+{{>partial_header}}
+package main
+
+import (
+	sw "example.com/m/{{apiPath}}"
+    "github.com/sirupsen/logrus"
+)
+
+func main() {
+    logrus.SetFormatter(&logrus .JSONFormatter{})
+
+    logrus.Info("Starting {{appName}}")
+
+	router := sw.NewRouter()
+
+	logrus.Fatal(router.Run(":{{serverPort}}"))
+}

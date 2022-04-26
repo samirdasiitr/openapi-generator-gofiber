@@ -1,0 +1,14 @@
+{# Copyright (c) 2022, Samir Das <samiruor@gmail.com> #}
+    func () string {
+        mapStr := "{"
+        ii := 0
+        mapLen := len({{value}})
+        for k,v := range {{ value }} {
+            mapStr += `"` + k + `" : ` + ToString(v)
+            if ii < (mapLen - 1) {
+                mapStr += ", "
+            }
+        }
+        mapStr += "}"
+        return mapStr
+    }()

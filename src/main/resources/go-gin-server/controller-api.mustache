@@ -1,0 +1,217 @@
+{{>partial_header}}
+package {{packageName}}
+
+{{#operations}}
+import (
+    "fmt"
+	"net/http"
+
+	"github.com/gofiber/fiber"
+)
+{{#operation}}
+
+// {{nickname}} - {{{summary}}}
+func (rtr *Router) {{nickname}}(ctx *fiber.Ctx) {
+{{#allParams}}
+    {{#isPathParam}}
+        {{#isLong}}
+    {{paramName}}Param, err := parseInt64Parameter(ctx.Params("{{baseName}}"), {{required}})
+    if err != nil {
+        msg := fmt.Sprintf("failed to parse {{baseName}} path parameter, err: %v", err.Error())
+        logger.Error(msg)
+        ctx.Status(http.StatusBadRequest).String(msg)
+        return
+    }
+        {{/isLong}}
+        {{#isInteger}}
+    {{paramName}}Param, err := parseInt32Parameter(ctx.Params("{{baseName}}"), {{required}})
+    if err != nil {
+        msg := fmt.Sprintf("failed to parse {{baseName}} path parameter, err: %v", err.Error())
+        logger.Error(msg)
+        ctx.Status(http.StatusBadRequest).String(msg)
+        return
+    }
+        {{/isInteger}}
+	{{^isLong}}
+	{{^isInteger}}
+    {{#isPrimitiveType}}
+	{{paramName}}Param := ctx.Params("{{baseName}}")
+    {{/isPrimitiveType}}
+    {{^isPrimitiveType}}
+	{{paramName}}Param, err := {{dataType}}FromValue(ctx.Params("{{baseName}}"))
+    if err != nil {
+        msg := fmt.Sprintf("enum conversion failure for value %v, err: %v", ctx.Params("{{baseName}}"), err.Error())
+        logger.Error(msg)
+        ctx.Status(http.StatusBadRequest).String(msg)
+        return
+    }
+    {{/isPrimitiveType}}
+    {{#defaultValue}}
+    {{paramName}}Param = {{{defaultValue}}}
+    {{/defaultValue}}
+    {{#required}}
+    if {{paramName}}Param == "" {
+        msg := fmt.Sprintf("{{baseName}} is missing in input")
+        logger.Error(msg)
+        ctx.Status(http.StatusBadRequest).String(msg)
+        return
+    }
+    {{/required}}
+	{{/isInteger}}
+    {{/isLong}}
+    {{/isPathParam}}
+
+    {{#isQueryParam}}
+        {{#isLong}}
+    {{paramName}}Param, err := parseInt64Parameter(ctx.Query("{{baseName}}"), {{required}})
+        {{/isLong}}
+        {{#isInteger}}
+    {{paramName}}Param, err := parseInt32Parameter(ctx.Query("{{baseName}}"), {{required}})
+        {{/isInteger}}
+	{{#isBoolean}}
+	{{paramName}}Param, err := parseBoolParameter(ctx.Query("{{baseName}}"))
+	{{/isBoolean}}
+
+	{{#isArray}}
+	{{#items.isLong}}
+	{{paramName}}Param, err := parseInt64ArrayParameter(ctx.Query("{{baseName}}"), ",", {{required}})
+	{{/items.isLong}}
+	{{#items.isInteger}}
+	{{paramName}}Param, err := parseInt32ArrayParameter(ctx.Query("{{baseName}}"), ",", {{required}})
+	{{/items.isInteger}}
+	{{^items.isLong}}
+	{{^items.isInteger}}
+	{{paramName}}Param := ctx.QueryArray("{{baseName}}")
+    {{#required}}
+    if len({{paramName}}Param) == 0 {
+        msg := fmt.Sprintf("{{baseName}} is missing in input")
+        logger.Error(msg)
+        ctx.String(http.StatusBadRequest, msg)
+        return
+    }
+    {{/required}}
+	{{/items.isInteger}}
+	{{/items.isLong}}
+	{{/isArray}}
+
+	{{^isLong}}
+	{{^isInteger}}
+	{{^isBoolean}}
+	{{^isArray}}
+    {{#isPrimitiveType}}
+	{{paramName}}Param := ctx.Query("{{baseName}}")
+    {{#required}}
+    {{paramName}}Param, err := {{dataType}}FromValue(ctx.Query("{{baseName}}"))
+    if {{paramName}}Param == "" {
+        msg := fmt.Sprintf("{{baseName}} is missing in input")
+        logger.Error(msg)
+        ctx.String(http.StatusBadRequest, msg)
+        return
+    }
+    {{/required}}
+    {{/isPrimitiveType}}
+    {{^isPrimitiveType}}
+    {{paramName}}Param,_ := {{dataType}}FromValue(ctx.Query("{{baseName}}"))
+    {{#required}}
+    if {{paramName}}Param == {{{dataType}}}_INVALID_{{{dataType}}} {
+        msg := fmt.Sprintf("{{baseName}} is missing in input")
+        logger.Error(msg)
+        ctx.String(http.StatusBadRequest, msg)
+        return
+    }
+    {{/required}}
+    {{/isPrimitiveType}}
+	{{/isArray}}
+	{{/isBoolean}}
+	{{/isInteger}}
+	{{/isLong}}
+
+    {{/isQueryParam}}
+	{{#isBodyParam}}
+	{{paramName}}Param := {{dataType}}{}
+    if errA := ctx.BodyParser(&{{paramName}}Param); errA != nil {
+        msg := fmt.Sprintf("failed to parse body parameter, err: %v", errA.Error())
+        logger.Error(msg)
+        ctx.String(http.StatusBadRequest, msg)
+        return
+    }
+    {{/isBodyParam}}
+    {{#isFormParam}}
+	{{#isFile}}
+    {{^isArray}}
+	{{paramName}}Param, err := ReadFormFileToTempFile(ctx, "{{baseName}}")
+	{{/isArray}}
+	if err != nil {
+        msg := fmt.Sprintf("failed to read file {{baseName}}, err: %v", err.Error())
+        logger.Error(msg)
+        ctx.String(http.StatusBadRequest, msg)
+        return
+	}
+	{{/isFile}}
+	{{#isLong}}
+    {{#isArray}}
+	{{paramName}}Param, err := parseInt64ArrayParameter(ctx.PostForm("{{baseName}}"), ",", {{required}})
+    {{/isArray}}
+    {{^isArray}}
+	{{paramName}}Param, err := parseInt64Parameter(ctx.PostForm("{{baseName}}"), {{required}})
+    {{/isArray}}
+	if err != nil {
+        msg := fmt.Sprintf("failed to read form value {{baseName}}, err: %v", err.Error())
+        logger.Error(msg)
+        ctx.String(http.StatusBadRequest, msg)
+        return
+	}
+	{{/isLong}}
+	{{#isInteger}}
+    {{#isArray}}
+	{{paramName}}Param, err := parseInt32ArrayParameter(ctx.PostForm("{{baseName}}"), ",", {{required}})
+    {{/isArray}}
+    {{^isArray}}
+	{{paramName}}Param, err := parseInt32Parameter(ctx.PostForm("{{baseName}}"), {{required}})
+    {{/isArray}}
+	if err != nil {
+        msg := fmt.Sprintf("failed to read form value {{baseName}}, err: %v", err.Error())
+        logger.Error(msg)
+        ctx.String(http.StatusBadRequest, msg)
+		return
+	}
+	{{/isInteger}}
+	{{^isFile}}
+	{{^isLong}}
+    {{^isInteger}}
+    {{^isPrimitive}}
+    {{paramName}}Str := ctx.PostForm("{{baseName}}")
+    {{paramName}}Param := {{dataType}}{}
+    err{{paramName}} := decodeJSON({{paramName}}Str, {{paramName}}Param)
+    if err{{paramName}} != nil {
+        msg := fmt.Sprintf("failed to read form value {{baseName}}, err: %v", err{{paramName}}.Error())
+        logger.Error(msg)
+        ctx.String(http.StatusBadRequest, msg)
+    }
+    {{/isPrimitive}}
+    {{#isPrimitive}}
+    {{paramName}}Param := ctx.PostForm("{{baseName}}")
+    {{/isPrimitive}}
+    {{/isInteger}}
+	{{/isLong}}
+	{{/isFile}}
+    {{/isFormParam}}
+{{/allParams}}
+
+    if rtr.{{classVarName}}Delegate != nil {
+        response, errR := rtr.{{classVarName}}Delegate.{{nickname}}(ctx{{#allParams}}, {{paramName}}Param{{/allParams}})
+        if errR != nil {
+            msg := fmt.Sprintf("failure in {{classVarName}}Delegate : %v", errR.Error())
+            logger.Error(msg)
+            ctx.String(response.Code, errR.Error())
+            return
+        }
+
+        ctx.JSON(response.Code, response.Body)
+        return
+    }
+
+    ctx.JSON(http.StatusOK)
+}
+{{/operation}}
+{{/operations}}

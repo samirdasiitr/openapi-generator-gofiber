@@ -1,0 +1,2 @@
+{# Copyright (c) 2022, Samir Das <samiruor@gmail.com> #}
+    str += `    "{{ var.name }}" : ` + {% include 'go-fiber/model-parameter.bt' with { "param": var, "value": "in." + var.name } %}

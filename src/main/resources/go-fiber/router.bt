@@ -1,0 +1,140 @@
+{# Copyright (c) 2022, Samir Das <samiruor@gmail.com> #}
+// Service name: {{ appName }}
+
+// Generated on {{ generatedDate }}
+
+package {{packageName}}
+
+
+import (
+    "github.com/google/uuid"
+    "gorm.io/gorm"
+	"github.com/gofiber/adaptor/v2"
+	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/cors"
+)
+
+const (
+    X_REQUEST_ID string = "x-request-id"
+    X_SESSION_ID string = "x-session-id"
+    X_TENANT_ID string = "tenant-id"
+    HEADER_AUTHORIZATION = "Authorization"
+    SERVICE_CODE = "serviceCode"
+)
+
+type Response struct {
+    Code int
+    Body interface{}
+}
+
+{% for api in apiInfo.apis %}
+type {{ api.classname }}Delegate interface {
+{% for operation in api.operations.operation %}
+{% for param in operation.allParams %}
+{% if param.isQueryParam %}
+    // {{ param.paramName }} is query parameter {% if param.required %}(Required){% endif %}
+
+{% endif %}
+{% if param.isPathParam %}
+    // {{ param.paramName }} is path parameter (Required)
+{% endif %}
+{% if param.isBodyParam %}
+    // {{ param.paramName }} is request parameter (Required)
+{% endif %}
+{% if param.isFormParam %}
+    // {{ param.paramName }} is form parameter {% if param.required %}(Required){% endif %}
+
+{% endif %}
+{% endfor %}
+    {{ operation.nickname }} (ctx *fiber.Ctx, dbConn *gorm.DB, logger *Logger{% if operation.allParams | length > 0 %},{% endif %}
+    {% for param in operation.allParams %}
+        {% if param.isQueryParam or param.isPathParam or param.isBodyParam or param.isFile or param.isFormParam %}
+        {{ param.paramName }} *{{ param.dataType }}{% endif %}
+        {% if not loop.last %},{% endif %}
+    {% endfor %}) (Response, error)
+
+{% endfor %}
+}
+
+{% endfor %}
+
+
+// Router object
+type Router struct {
+    *fiber.App
+{% for api in apiInfo.apis %}
+    {{ api.classVarName }}Delegate {{ api.classname }}Delegate
+{% endfor %}
+
+    logger *Logger
+    DbConn *gorm.DB
+}
+
+func fiberMiddleware(app *fiber.App) {
+	app.Use(
+		// Add CORS to each route.
+		cors.New(),
+	)
+}
+
+func contextMiddleware(app *fiber.App) {
+	app.Use(func(ctx *fiber.Ctx) error {
+	    contextId := ctx.Get(X_REQUEST_ID, uuid.New().String())
+	    ctx.Locals(X_REQUEST_ID, contextId)
+
+	    sessionId := ctx.Get(X_SESSION_ID)
+	    if sessionId == "" {
+	        authToken := ctx.Get(HEADER_AUTHORIZATION)
+	        if authToken != "" {
+                sum := md5.Sum([]byte(authToken))
+                sessionId = hex.EncodeToString(sum[:])
+            }
+	    }
+
+	    if sessionId != "" {
+	        ctx.Locals(X_SESSION_ID, sessionId)
+	    }
+
+	    tenantId := ctx.Get(X_TENANT_ID)
+	    ctx.Locals(X_TENANT_ID, tenantId)
+
+	    return ctx.Next()
+	})
+}
+
+// Returns new router
+func NewRouter(app *fiber.App) *Router {
+    if app == nil {
+        app = fiber.New()
+    }
+    router := &Router {
+        App: app,
+        logger: GetLogger(),
+    }
+
+    // Setup middleware
+    fiberMiddleware(router.App)
+
+    contextMiddleware(router.App)
+
+    LoggerMiddleware(router.App)
+
+	app.Get("/metrics", adaptor.HTTPHandler(promhttp.Handler()))
+
+{% for api in apiInfo.apis %}
+{% for operation in api.operations.operation %}
+    router.{{ operation.httpMethod }}("{{ operation.basePathWithoutHost}}{{operation.path}}", router.{{ operation.nickname }})
+{% endfor %}
+
+{% endfor %}
+
+    return router
+}
+
+
+{% for api in apiInfo.apis %}
+func (rtr *Router) Set{{ api.classname }}Delegate(delegate {{ api.classname }}Delegate) {
+    rtr.{{ api.classVarName }}Delegate = delegate
+}
+{% endfor %}
+

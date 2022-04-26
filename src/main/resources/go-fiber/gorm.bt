@@ -1,0 +1,42 @@
+{# Copyright (c) 2022, Samir Das <samiruor@gmail.com> #}
+// Service name: {{ appName }}
+
+// Generated on {{ generatedDate }}
+
+package {{packageName}}
+
+
+{% for m in models %}
+{% set model = m.model %}
+{% if model.vendorExtensions.is_gorm_object %}
+// {{ model.classname }}ORM entity
+type {{ model.classname }}ORM struct {
+{% for var in model.vars %}
+    {% if var.description %}// {{ var.description }}{% else %} // ERROR: description missing in openapi spec {% endif %}
+
+    {{ var.name }} {% if var.isNullable %}*{% endif %}{{ var.vendorExtensions.gorm_datatype }} {% if var.vendorExtensions.x_gorm_tag %}`gorm: "{{ var.vendorExtensions.x_gorm_tag }}"`{% endif %}
+
+{% endfor %}
+}
+
+// Returns table name for {{ model.classname }}ORM
+func (*{{ model.classname }}ORM) TableName() string {
+    return "{{ model.vendorExtensions.gorm_table_name }}"
+}
+
+{% if model.vendorExtensions.auto_generate_pkey %}
+// Hook to create primary for {{ model.classname }}ORM
+func (in *{{ model.classname }}ORM) BeforeCreate(tx *gorm.DB) (err error) {
+  in.{{ model.vendorExtensions.auto_generate_pkey }} = uuid.New()
+
+  if _, err = uuid.Parse(in.{{ model.vendorExtensions.auto_generate_pkey }}.String()); err != nil {
+    err = errors.New("failed to auto generate primary key for {{ model.classname }}ORM")
+  }
+
+  return
+}
+{% endif %}
+
+{% endif %}
+
+{% endfor %}

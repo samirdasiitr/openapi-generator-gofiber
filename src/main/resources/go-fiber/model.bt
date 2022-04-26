@@ -1,0 +1,108 @@
+{# Copyright (c) 2022, Samir Das <samiruor@gmail.com> #}
+// Service name: {{ appName }}
+
+// Generated on {{ generatedDate }}
+
+
+package {{packageName}}
+
+
+{% if imports|length > 0%}
+import (
+{% for import in imports %}
+    "{{ import.import }}"
+{% endfor %}
+)
+{% endif %}
+
+{% for item in models %}
+{% set model = item.model %}
+{% if model.isEnum %}
+{% if model.description %}
+// {{ classname }}: {{ model.description }}
+{% endif %}
+
+{% if model.format %}
+type {{ model.classname }} {{ model.format }}
+{% else %}
+type {{ model.classname }} {{ model.dataType }}
+{% endif %}
+
+
+const (
+{% for var in model.allowableValues.values %}
+{% if model.isString %}
+    {{ model.classname }}_{{ var }} {{ model.classname }} = "{{ var }}"
+{% else %}
+    {{ model.classname }}_{{ var }} {{ model.classname }} = {{ var }}
+{% endif %}
+{% endfor %}
+)
+
+// Convert given value to enum
+func {{model.classname}}FromValue(value {{model.dataType}}) ({{model.classname}}, error) {
+{% for var in model.allowableValues.values %}
+{% if model.isString %}
+    if value == "{{ var }}" {
+{% else %}
+    if value == {{ var }} {
+{% endif %}
+        return {{ model.classname }}_{{ var }}, nil
+    }
+{% endfor %}
+
+{% if model.isString %}
+    return "", fmt.Errorf("Failed to convert %s to {{model.classname}}", value)
+{% else %}
+    return nil, fmt.Errorf("Failed to convert %s to {{model.classname}}", value)
+{% endif %}
+}
+
+// Returns string representation of {{classname}} enum
+func (in {{classname}}) String() string {
+{% for var in model.allowableValues.values %}
+    if in == {{ model.classname }}_{{ var }} {
+        return "{{ var }}"
+    }
+{% endfor %}
+    return ""
+}
+
+{% else %}
+{% if model.description %}
+// {{ classname }}: {{ model.description }}
+{% endif %}
+
+type {{classname}} struct {
+    BaseModel  `json:"-" gorm:"-"`
+{% for var in model.vars %}
+    {% if var.description %}// {{ var.description }}{% else %} // ERROR: description missing in openapi spec {% endif %}
+
+    {{ var.name }} {% if var.isNullable %}*{% endif %}{{ var.dataType }} `json:"{{ var.baseName }}{% if not var.required %},omitempty{% endif %}"`
+{% endfor %}
+}
+
+// Returns string representation of {{classname}} object
+func (in {{classname}}) String() string {
+    str := "{"
+{% for var in model.vars %}
+{% if var.isArray %}{% include 'go-fiber/array.bt' %}{% endif %}
+{% if var.isMap %}str += `    "{{ var.name }}" : ` +
+{% include 'go-fiber/map.bt' with { "value" : "in." + var.name } %}
+{% endif %}
+{% if not var.isMap and not var.isArray %}{% include 'go-fiber/non-array.bt' %}{% endif %}
+
+{% if not loop.last %}
+    str += ","
+{%endif%}
+{% endfor %}
+    str += "}"
+
+    return str
+}
+
+{% endif %} {#  isEnum end #}
+
+{% endfor %} {#  for loop on models #}
+
+

@@ -1,0 +1,55 @@
+{{>partial_header}}
+package {{packageName}}
+
+{{#models}}{{#imports}}
+{{#-first}}import (
+{{/-first}}	"{{import}}"{{#-last}}
+)
+{{/-last}}{{/imports}}
+{{#model}}
+{{#isEnum}}
+import "fmt"
+{{/isEnum}}
+{{#isEnum}}{{#description}}// {{{classname}}} : {{{description}}}{{/description}}
+type {{{classname}}} {{^format}}{{dataType}}{{/format}}{{{format}}}
+
+// List of {{{classname}}}
+const (
+	{{#allowableValues}}
+	{{#enumVars}}
+    {{{classname}}}_{{name}} {{{classname}}} = {{{value}}}
+	{{/enumVars}}
+	{{/allowableValues}}
+    {{#isString}}
+    {{{classname}}}_INVALID_{{{classname}}} {{{classname}}} = "{{{classname}}}_INVALID_{{{classname}}}"
+    {{/isString}}
+    {{#isNumber}}
+    {{{classname}}}_INVALID_{{{classname}}} {{{classname}}} = -1
+    {{/isNumber}}
+)
+
+// Convert value to enum type
+func {{{classname}}}FromValue(value {{dataType}}) ({{{classname}}}, error) {
+	{{#allowableValues}}
+	{{#enumVars}}
+    if value == {{{value}}} {
+        return {{{classname}}}_{{name}}, nil
+    }
+	{{/enumVars}}
+	{{/allowableValues}}
+
+    return {{{classname}}}_INVALID_{{{classname}}}, fmt.Errorf("Failed to convert %s to {{{classname}}}", value)
+}
+
+{{/isEnum}}
+{{^isEnum}}{{#description}}
+// {{classname}} - {{{description}}}{{/description}}
+type {{classname}} struct {
+{{#vars}}{{#description}}
+	// {{{.}}}{{/description}}
+	{{#deprecated}}
+	// Deprecated
+	{{/deprecated}}
+	{{name}} {{#isNullable}}*{{/isNullable}}{{{dataType}}} `json:"{{baseName}}{{^required}},omitempty{{/required}}"{{#vendorExtensions.x-go-custom-tag}} {{{.}}}{{/vendorExtensions.x-go-custom-tag}}`
+{{/vars}}
+}{{/isEnum}}{{/model}}{{/models}}

@@ -1,0 +1,95 @@
+{# Copyright (c) 2022, Samir Das <samiruor@gmail.com> #}
+// Service name: {{ appName }}
+
+// Generated on {{ generatedDate }}
+
+package {{packageName}}
+
+
+import (
+	"os"
+	"time"
+
+	"github.com/sirupsen/logrus"
+	"github.com/gofiber/fiber/v2"
+)
+
+type Logger struct {
+	*logrus.Entry
+}
+
+var _logger *logrus.Logger
+var _log = &Logger{}
+
+// SetUpLogger settings
+func SetUpLogger(serviceCode string) {
+	_logger = logrus.New()
+	_logger.Formatter = &logrus.JSONFormatter{
+		TimestampFormat: time.RFC3339Nano,
+	}
+	_logger.SetOutput(os.Stdout)
+
+	_log.Entry = logrus.NewEntry(_logger).WithField(SERVICE_CODE, serviceCode)
+}
+
+// Returns logger
+func GetLogger() *Logger {
+	return _log
+}
+
+func GetLoggerWithContext(ctx *fiber.Ctx) *Logger {
+    logr := logrus.NewEntry(_logger).WithField("contextId", ctx.Locals(X_REQUEST_ID))
+    if ctx.Locals(X_SESSION_ID) != nil {
+        logr = logr.WithField("sessionId", ctx.Locals(X_SESSION_ID))
+    }
+    if ctx.Locals(X_TENANT_ID) != nil {
+        logr = logr.WithField("tenantId", ctx.Locals(X_TENANT_ID))
+    }
+    if ctx.Locals(SERVICE_CODE) != nil {
+        logr = logr.WithField("serviceCode", ctx.Locals(SERVICE_CODE))
+    }
+
+    return &Logger{
+        Entry: logr,
+    }
+}
+
+func LoggerMiddleware(app *fiber.App) {
+    app.Use(func (ctx *fiber.Ctx) error {
+		logger := GetLoggerWithContext(ctx).Entry
+		logger = logger.WithField("type", "request")
+		logger = logger.WithField("URL", ctx.OriginalURL())
+		logger = logger.WithField("caller", ctx.IP())
+		logger = logger.WithField("method", ctx.Method())
+		logger.Infof("received_request")
+
+		err := ctx.Next()
+
+		logger = logger.WithField("type", "response")
+		logger = logger.WithField("response", ctx.Response().StatusCode())
+		logger.Infof("request_served")
+
+		return err
+    })
+}
+
+type FilterSensitiveInfoHook struct{}
+
+var sensitiveInfoMask = regexp.MustCompile(`("password"\s*:\s")(.*)(")`)
+
+func (hook *FilterSensitiveInfoHook) Fire(entry *logrus.Entry) error {
+	entry.Message = string(sensitiveInfoMask.ReplaceAllString(entry.Message, "$1***$3"))
+	return nil
+}
+
+func (hook *FilterSensitiveInfoHook) Levels() []logrus.Level {
+	return []logrus.Level{
+		logrus.TraceLevel,
+		logrus.DebugLevel,
+		logrus.InfoLevel,
+		logrus.WarnLevel,
+		logrus.ErrorLevel,
+		logrus.FatalLevel,
+		logrus.PanicLevel,
+	}
+}

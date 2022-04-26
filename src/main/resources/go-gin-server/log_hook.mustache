@@ -1,0 +1,42 @@
+{{>partial_header}}
+package {{packageName}}
+
+import (
+	"regexp"
+    "strings"
+
+	"github.com/sirupsen/logrus"
+)
+
+// Hook is a logrus hook for redacting information from logs
+type LogMask struct {
+	AcceptedLevels []logrus.Level
+	Pattern *regexp.Regexp
+}
+
+func NewLogMask(acceptedLevels []logrus.Level, patternList []string) (*LogMask, error) {
+    patternStr := `(.*)(` + strings.Join(patternList, "|") + `)(.*)`
+    pattern := regexp.MustCompile(patternStr)
+
+    lm := &LogMask {
+        AcceptedLevels: acceptedLevels,
+        Pattern: pattern,
+    }
+
+    return lm, nil
+}
+
+// Levels returns the user defined AcceptedLevels, If AcceptedLevels is empty, all logrus levels are returned
+func (lm *LogMask) Levels() []logrus.Level {
+	if len(lm.AcceptedLevels) == 0 {
+		return logrus.AllLevels
+	}
+	return lm.AcceptedLevels
+}
+
+// Fire redacts values in an log Entry that match
+// with keys defined in the RedactionList
+func (lm *LogMask) Fire(e *logrus.Entry) error {
+    // TODO: Fix me
+	return nil
+}

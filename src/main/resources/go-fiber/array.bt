@@ -1,0 +1,10 @@
+{# Copyright (c) 2022, Samir Das <samiruor@gmail.com> #}
+    str += `    "{{ var.name }}" : [`
+    for ii, val := range in.{{ var.name }} {
+        str += {% include 'go-fiber/model-parameter.bt' with { "param": var.items, "value": "val" } %}
+
+        if ii > 0 && ii < (len(in.{{ var.name }}) - 1) {
+            str += ","
+        }
+    }
+    str += "    ]"
